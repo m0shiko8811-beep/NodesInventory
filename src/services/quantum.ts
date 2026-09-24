@@ -3,6 +3,8 @@
 
 export const INOVA_BASE = 536870912; // 0x20000000
 
+export interface LastGoodFix { lat: number; lon: number; positionStatus: number; ts: number; }
+
 export interface QuantumNode {
   mac: string;
   bleSerial: number;
@@ -14,6 +16,8 @@ export interface QuantumNode {
   rssi: number;
   manufacturerRaw: string; // hex, for future decoding
   lastSeen: number; // Date.now()
+  lastGoodFix?: LastGoodFix | null;   // sticky snapshot of the last real GPS fix
+  locDataPresent?: boolean;           // transient: did THIS packet carry 0x1819 location data
 }
 
 export function bleSerialToLabel(serial: number): string {
@@ -39,6 +43,7 @@ export function parseQuantumAdvertisement(
   let longitude: number | null = null;
   let positionStatus = 0;
   let manufacturerRaw = '';
+  let locDataPresent: boolean | undefined;
 
   // Battery Service data (UUID 0x180F)
   const batKey = Object.keys(serviceData ?? {}).find(k =>
@@ -53,6 +58,7 @@ export function parseQuantumAdvertisement(
     k.toLowerCase().replace(/-/g, '').includes('1819'),
   );
   if (locKey && serviceData![locKey]?.length >= 10) {
+    locDataPresent = true;
     const d = serviceData![locKey];
     const flags = d[0] | (d[1] << 8);
     const locPresent = (flags >> 2) & 1;
@@ -92,5 +98,31 @@ export function parseQuantumAdvertisement(
     rssi,
     manufacturerRaw,
     lastSeen: Date.now(),
+    locDataPresent,
   };
+}
+
+export function mergeNode(existing: QuantumNode | undefined, parsed: Partial<QuantumNode>): QuantumNode {
+  const merged = { ...existing, ...parsed } as QuantumNode;
+  const hasCoords = parsed.latitude != null && parsed.longitude != null;
+  if (!hasCoords && existing) {
+    // a GPS-less advertisement must not wipe a previously known position
+    merged.latitude = existing.latitude;
+    merged.longitude = existing.longitude;
+  }
+  if (!parsed.locDataPresent && existing) {
+    // this packet carried no location block: keep the last known status
+    merged.positionStatus = existing.positionStatus;
+  }
+  if (hasCoords) {
+    merged.lastGoodFix = {
+      lat: parsed.latitude as number,
+      lon: parsed.longitude as number,
+      positionStatus: parsed.positionStatus ?? 0,
+      ts: parsed.lastSeen ?? existing?.lastGoodFix?.ts ?? 0,   // stamp from the packet's lastSeen, never a fresh clock read
+    };
+  } else {
+    merged.lastGoodFix = existing?.lastGoodFix ?? null;
+  }
+  return merged;
 }

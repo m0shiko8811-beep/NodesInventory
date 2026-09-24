@@ -1,12 +1,13 @@
 import React, {
-  createContext, useContext, useEffect, useRef, useState, useCallback,
+  createContext, useContext, useEffect, useRef, useState, useCallback, useMemo,
 } from 'react';
 import { BleManager, Device, State } from 'react-native-ble-plx';
 import { PermissionsAndroid, Platform } from 'react-native';
-import { QuantumNode, parseQuantumAdvertisement } from '../services/quantum';
+import { QuantumNode, parseQuantumAdvertisement, mergeNode } from '../services/quantum';
 
 interface ScannerContextType {
   nodes: Map<string, QuantumNode>;
+  nodesBySerial: Map<number, QuantumNode>;
   scanning: boolean;
   bleReady: boolean;
   startScan: () => void;
@@ -16,6 +17,7 @@ interface ScannerContextType {
 
 const ScannerContext = createContext<ScannerContextType>({
   nodes: new Map(),
+  nodesBySerial: new Map(),
   scanning: false,
   bleReady: false,
   startScan: () => {},
@@ -72,7 +74,7 @@ export function ScannerProvider({ children }: { children: React.ReactNode }) {
       setNodes(prev => {
         const next = new Map(prev);
         const existing = next.get(device.id);
-        next.set(device.id, { ...existing, ...parsed } as QuantumNode);
+        next.set(device.id, mergeNode(existing, parsed));
         return next;
       });
     });
@@ -87,8 +89,29 @@ export function ScannerProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => () => { manager.stopDeviceScan(); manager.destroy(); }, [manager]);
 
+  const nodesBySerial = useMemo(() => {
+    const bySerial = new Map<number, QuantumNode>();
+    for (const node of nodes.values()) {
+      const existing = bySerial.get(node.bleSerial);
+      if (!existing) {
+        bySerial.set(node.bleSerial, node);
+        continue;
+      }
+      if (node.lastSeen > existing.lastSeen) {
+        bySerial.set(node.bleSerial, node);
+      } else if (node.lastSeen === existing.lastSeen && node.lastGoodFix && !existing.lastGoodFix) {
+        bySerial.set(node.bleSerial, node);
+      }
+    }
+    return bySerial;
+  }, [nodes]);
+
   return (
-    <ScannerContext.Provider value={{ nodes, scanning, bleReady, startScan, stopScan, clearNodes }}>
+    <ScannerContext.Provider
+      value={{
+        nodes, nodesBySerial, scanning, bleReady, startScan, stopScan, clearNodes,
+      }}
+    >
       {children}
     </ScannerContext.Provider>
   );
