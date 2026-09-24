@@ -64,6 +64,10 @@ function removeNodeFromMap(mac){
   if(window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'remove', mac: mac }));
 }
 
+function removeMarker(mac){
+  if(markers[mac]){ map.removeLayer(markers[mac]); delete markers[mac]; }
+}
+
 nodes.forEach(addOrUpdate);
 
 // Fit map to all markers if any
@@ -77,10 +81,10 @@ if(lats.length>0){
 
 // Listen for updates from React Native
 document.addEventListener('message', function(e){
-  try{ var n=JSON.parse(e.data); addOrUpdate(n); } catch(ex){}
+  try{ var d=JSON.parse(e.data); if(d && d.type==='removeMarker'){ removeMarker(d.mac); } else { addOrUpdate(d); } }catch(ex){}
 });
 window.addEventListener('message', function(e){
-  try{ var n=JSON.parse(e.data); addOrUpdate(n); } catch(ex){}
+  try{ var d=JSON.parse(e.data); if(d && d.type==='removeMarker'){ removeMarker(d.mac); } else { addOrUpdate(d); } }catch(ex){}
 });
 </script>
 </body>
@@ -91,18 +95,27 @@ export default function MapScreen() {
   const { nodes, removeNode } = useScannerContext();
   const insets = useSafeAreaInsets();
   const webRef = useRef<WebView>(null);
+  const prevMacsRef = useRef<Set<string>>(new Set());
 
   const nodesWithGps = useMemo(
     () => Array.from(nodes.values()).filter(n => n.latitude !== null),
     [nodes],
   );
 
-  // Push new/updated nodes to the map incrementally
+  // Push new/updated nodes to the map incrementally, and remove markers
+  // whose node disappeared from the node set.
   useEffect(() => {
     if (!webRef.current) return;
     for (const n of nodesWithGps) {
       webRef.current.postMessage(JSON.stringify(n));
     }
+    const currentMacs = new Set(nodesWithGps.map(n => n.mac));
+    for (const mac of prevMacsRef.current) {
+      if (!currentMacs.has(mac)) {
+        webRef.current.postMessage(JSON.stringify({ type: 'removeMarker', mac }));
+      }
+    }
+    prevMacsRef.current = currentMacs;
   }, [nodes]);
 
   const html = useMemo(
