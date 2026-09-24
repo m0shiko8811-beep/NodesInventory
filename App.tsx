@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Text } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ScannerProvider } from './src/context/ScannerContext';
 import type { JobStackParamList } from './src/navigation/types';
 import ScanScreen from './src/screens/ScanScreen';
@@ -28,33 +29,35 @@ function JobsNavigator() {
 
 export default function App() {
   return (
-    <ScannerProvider>
-      <NavigationContainer>
-        <Tab.Navigator
-          screenOptions={{
-            headerShown: false,
-            tabBarStyle: { backgroundColor: '#111', borderTopColor: '#222' },
-            tabBarActiveTintColor: '#42A5F5',
-            tabBarInactiveTintColor: '#555',
-          }}
-        >
-          <Tab.Screen
-            name="Scan"
-            component={ScanScreen}
-            options={{ tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>📡</Text> }}
-          />
-          <Tab.Screen
-            name="Map"
-            component={MapScreen}
-            options={{ tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>🗺️</Text> }}
-          />
-          <Tab.Screen
-            name="Jobs"
-            component={JobsNavigator}
-            options={{ tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>&#128203;</Text> }}
-          />
-        </Tab.Navigator>
-      </NavigationContainer>
-    </ScannerProvider>
+    <SafeAreaProvider>
+      <ScannerProvider>
+        <NavigationContainer>
+          <Tab.Navigator
+            screenOptions={{
+              headerShown: false,
+              tabBarStyle: { backgroundColor: '#111', borderTopColor: '#222' },
+              tabBarActiveTintColor: '#42A5F5',
+              tabBarInactiveTintColor: '#555',
+            }}
+          >
+            <Tab.Screen
+              name="Scan"
+              component={ScanScreen}
+              options={{ tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>📡</Text> }}
+            />
+            <Tab.Screen
+              name="Map"
+              component={MapScreen}
+              options={{ tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>🗺️</Text> }}
+            />
+            <Tab.Screen
+              name="Jobs"
+              component={JobsNavigator}
+              options={{ tabBarIcon: ({ color }) => <Text style={{ fontSize: 20, color }}>&#128203;</Text> }}
+            />
+          </Tab.Navigator>
+        </NavigationContainer>
+      </ScannerProvider>
+    </SafeAreaProvider>
   );
 }

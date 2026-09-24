@@ -8,7 +8,7 @@ import * as Location from 'expo-location';
 import type { JobStackParamList } from '../navigation/types';
 import type { Job, DeployedNodeRecord, PickupResult, ReconState } from '../services/jobStore';
 import {
-  listJobs, loadDeployed, loadPickup, mergePickupResults, setJobStatus,
+  listJobs, loadDeployed, loadPickup, mergePickupResults, setJobStatus, removeDeployedNode,
 } from '../services/jobStore';
 import { evaluateRecovery } from '../services/proximity';
 import { useScannerContext } from '../context/ScannerContext';
@@ -208,6 +208,27 @@ export default function PickupScreen({ navigation, route }: NativeStackScreenPro
     navigation.navigate('Report', { jobId });
   };
 
+  const handleRemoveNode = useCallback(async (bleSerial: number) => {
+    const key = String(bleSerial);
+    setManifest(prev => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    setResults(prev => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    try {
+      await removeDeployedNode(jobId, bleSerial);
+    } catch {
+      // best effort persistence; local view already updated
+    }
+  }, [jobId]);
+
   const manifestSize = Object.keys(manifest).length;
   const recoveredCount = Object.values(results).filter(r => r.state === 'recovered').length;
   const hasReconciled = Object.keys(results).length > 0;
@@ -335,6 +356,7 @@ export default function PickupScreen({ navigation, route }: NativeStackScreenPro
                 positionStatus={item.positionStatus}
                 fixAgeMs={item.fixAgeMs}
                 state={item.state}
+                onRemove={() => handleRemoveNode(Number(item.key))}
               />
             </View>
           )}

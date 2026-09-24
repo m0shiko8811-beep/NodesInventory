@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export interface JobHeaderProps {
   title: string;
@@ -7,8 +8,9 @@ export interface JobHeaderProps {
 }
 
 export default function JobHeader({ title, subtitle }: JobHeaderProps) {
+  const insets = useSafeAreaInsets();
   return (
-    <View style={styles.header}>
+    <View style={[styles.header, { paddingTop: 20 + insets.top }]}>
       <Text style={styles.title}>{title}</Text>
       {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
     </View>

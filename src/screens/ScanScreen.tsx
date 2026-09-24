@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet, StatusBar,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useScannerContext } from '../context/ScannerContext';
 import { QuantumNode } from '../services/quantum';
 
@@ -47,7 +48,10 @@ function NodeRow({ node }: { node: QuantumNode }) {
 }
 
 export default function ScanScreen() {
-  const { nodes, scanning, bleReady, startScan, stopScan, clearNodes } = useScannerContext();
+  const {
+    nodes, scanning, bleReady, startScan, stopScan, clearNodes,
+  } = useScannerContext();
+  const insets = useSafeAreaInsets();
 
   const sorted = useMemo(
     () => Array.from(nodes.values()).sort((a, b) => b.rssi - a.rssi),
@@ -58,7 +62,7 @@ export default function ScanScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#1A237E" />
 
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: 20 + insets.top }]}>
         <View>
           <Text style={styles.title}>Quantum Scanner</Text>
           <Text style={styles.headerSub}>

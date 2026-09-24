@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import type { ReconState } from '../services/jobStore';
 
 export interface NodeResultRowProps {
@@ -10,6 +10,7 @@ export interface NodeResultRowProps {
   fixAgeMs?: number | null;
   state?: ReconState;
   batteryPct?: number | null;
+  onRemove?: () => void;
 }
 
 const STATE_BADGES: Record<ReconState, { label: string; color: string }> = {
@@ -66,6 +67,7 @@ export default function NodeResultRow({
   fixAgeMs,
   state,
   batteryPct,
+  onRemove,
 }: NodeResultRowProps) {
   const rssiText = formatRssi(rssi);
   const distanceText = formatDistance(distanceM);
@@ -111,6 +113,15 @@ export default function NodeResultRow({
           <Text style={[styles.badgeText, { color: badge.color }]}>{badge.label}</Text>
         </View>
       ) : null}
+      {onRemove ? (
+        <TouchableOpacity
+          onPress={onRemove}
+          style={styles.removeBtn}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Text style={styles.removeText}>×</Text>
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 }
@@ -137,4 +148,6 @@ const styles = StyleSheet.create({
   dot: { width: 8, height: 8, borderRadius: 4, marginLeft: 1 },
   badgeWrap: { marginLeft: 12 },
   badgeText: { fontSize: 13, fontWeight: 'bold' },
+  removeBtn: { paddingHorizontal: 10, paddingVertical: 6, marginLeft: 4 },
+  removeText: { color: '#777', fontSize: 20, fontWeight: 'bold' },
 });

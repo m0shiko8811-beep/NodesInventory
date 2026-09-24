@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useMemo } from 'react';
 import { View, StyleSheet, Text } from 'react-native';
 import { WebView } from 'react-native-webview';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useScannerContext } from '../context/ScannerContext';
 
 function buildHtml(nodesJson: string): string {
@@ -83,6 +84,7 @@ window.addEventListener('message', function(e){
 
 export default function MapScreen() {
   const { nodes } = useScannerContext();
+  const insets = useSafeAreaInsets();
   const webRef = useRef<WebView>(null);
 
   const nodesWithGps = useMemo(
@@ -108,7 +110,7 @@ export default function MapScreen() {
   return (
     <View style={styles.container}>
       {nodesWithGps.length === 0 && (
-        <View style={styles.banner}>
+        <View style={[styles.banner, { paddingTop: 10 + insets.top }]}>
           <Text style={styles.bannerTxt}>
             No GPS positions yet — scan nodes outdoors to see them on the map
           </Text>

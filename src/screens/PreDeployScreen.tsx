@@ -6,7 +6,9 @@ import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { JobStackParamList } from '../navigation/types';
 import type { Job, DeployedNodeRecord } from '../services/jobStore';
-import { listJobs, loadDeployed, upsertDeployedNodes, setJobStatus } from '../services/jobStore';
+import {
+  listJobs, loadDeployed, upsertDeployedNodes, setJobStatus, removeDeployedNode,
+} from '../services/jobStore';
 import { useScannerContext } from '../context/ScannerContext';
 import JobHeader from '../components/JobHeader';
 import NodeResultRow from '../components/NodeResultRow';
@@ -165,6 +167,23 @@ export default function PreDeployScreen({ navigation, route }: NativeStackScreen
     navigation.goBack();
   };
 
+  const handleRemoveNode = useCallback(async (bleSerial: number) => {
+    const key = String(bleSerial);
+    delete pendingRef.current[key];
+    setManifest(prev => {
+      if (!(key in prev)) return prev;
+      const next = { ...prev };
+      delete next[key];
+      manifestRef.current = next;
+      return next;
+    });
+    try {
+      await removeDeployedNode(jobId, bleSerial);
+    } catch {
+      setSaveError(true);
+    }
+  }, [jobId]);
+
   const manifestList = Object.values(manifest);
   const count = manifestList.length;
 
@@ -242,6 +261,7 @@ export default function PreDeployScreen({ navigation, route }: NativeStackScreen
                   batteryPct={item.batteryPctAtDeploy}
                   rssi={live ? live.rssi : null}
                   positionStatus={live ? live.positionStatus : null}
+                  onRemove={() => handleRemoveNode(item.bleSerial)}
                 />
               </View>
             );

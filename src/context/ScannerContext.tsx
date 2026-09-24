@@ -1,8 +1,10 @@
 import React, {
   createContext, useContext, useEffect, useRef, useState, useCallback, useMemo,
 } from 'react';
-import { BleManager, Device, State } from 'react-native-ble-plx';
-import { PermissionsAndroid, Platform } from 'react-native';
+import {
+  BleManager, Device, State, ScanMode,
+} from 'react-native-ble-plx';
+import { Alert, PermissionsAndroid, Platform } from 'react-native';
 import { QuantumNode, parseQuantumAdvertisement, mergeNode } from '../services/quantum';
 
 interface ScannerContextType {
@@ -55,19 +57,34 @@ export function ScannerProvider({ children }: { children: React.ReactNode }) {
   const startScan = useCallback(async () => {
     if (scanning) return;
     const ok = await requestPermissions();
-    if (!ok || !bleReady) return;
+    if (!ok) {
+      Alert.alert('Permission needed', 'Bluetooth and location permission are required to scan for nodes.');
+      return;
+    }
+    let state = null;
+    try {
+      state = await manager.state();
+    } catch (e) {
+      state = null;
+    }
+    if (state !== State.PoweredOn) {
+      Alert.alert('Bluetooth needed', 'Turn on Bluetooth to scan (adapter state: ' + String(state) + ').');
+      return;
+    }
 
     setScanning(true);
-    manager.startDeviceScan(null, { allowDuplicates: true }, (err, device) => {
+    manager.startDeviceScan(null, { allowDuplicates: true, scanMode: ScanMode.LowLatency, legacyScan: false }, (err, device) => {
       if (err || !device) return;
-      if (!device.localName?.startsWith('TN ')) return;
+
+      const advName = device.localName ?? device.name;
+      if (!advName?.startsWith('TN ')) return;
 
       const parsed = parseQuantumAdvertisement(
         device.manufacturerData ? { '2081': base64ToUint8(device.manufacturerData) } : null,
         buildServiceData(device),
         device.rssi ?? -99,
         device.id,
-        device.localName,
+        advName,
       );
       if (!parsed) return;
 
@@ -78,7 +95,7 @@ export function ScannerProvider({ children }: { children: React.ReactNode }) {
         return next;
       });
     });
-  }, [scanning, bleReady, manager]);
+  }, [scanning, manager]);
 
   const stopScan = useCallback(() => {
     manager.stopDeviceScan();

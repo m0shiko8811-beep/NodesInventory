@@ -165,14 +165,15 @@ export default function ReportScreen({ navigation, route }: NativeStackScreenPro
     if (!job) return;
     try {
       const csv = buildCsv(manifest, rows);
-      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
       const safeName = job.name.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const fileName = safeName + '_' + stamp + '.csv';
 
-      // Unique folder per export on internal storage so reports never overwrite each other.
-      const reportDir = new Directory(Paths.document, 'QuantumReports', `${safeName}_${stamp}`);
-      reportDir.create({ intermediates: true, idempotent: true });
+      // File name itself carries the job name and timestamp, so no per-export subfolder needed.
+      const dir = new Directory(Paths.document, 'QuantumReports');
+      dir.create({ intermediates: true, idempotent: true });
 
-      const file = new File(reportDir, 'report.csv');
+      const file = new File(dir, fileName);
       file.create();
       file.write(csv);
 

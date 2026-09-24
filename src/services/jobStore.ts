@@ -179,3 +179,21 @@ export function mergePickupResults(jobId: string, results: PickupResult[]): Prom
     await writeJson(jobPickupKey(jobId), existing);
   });
 }
+
+export function removeDeployedNode(jobId: string, bleSerial: number): Promise<void> {
+  return enqueue(async () => {
+    const key = String(bleSerial);
+
+    const deployed = await loadDeployed(jobId);
+    if (key in deployed) {
+      delete deployed[key];
+      await writeJson(jobDeployedKey(jobId), deployed);
+    }
+
+    const pickup = await loadPickup(jobId);
+    if (key in pickup) {
+      delete pickup[key];
+      await writeJson(jobPickupKey(jobId), pickup);
+    }
+  });
+}
