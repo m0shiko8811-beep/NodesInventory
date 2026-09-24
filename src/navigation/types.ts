@@ -1,6 +1,6 @@
 export type JobStackParamList = {
   JobHome: undefined;
-  PreDeploy: undefined;
-  Pickup: undefined;
-  Report: undefined;
+  PreDeploy: { jobId: string };
+  Pickup: { jobId: string };
+  Report: { jobId: string };
 };

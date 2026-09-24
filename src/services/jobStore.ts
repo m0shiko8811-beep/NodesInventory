@@ -10,6 +10,9 @@ export interface Job {
   name: string;
   createdAt: number;
   status: JobStatus;
+  deployedAt?: number;
+  pickedUpAt?: number;
+  closedAt?: number;
 }
 
 export interface DeployedNodeRecord {
@@ -100,10 +103,21 @@ export async function listJobs(): Promise<Job[]> {
   return readJson<Job[]>(JOBS_INDEX_KEY, []);
 }
 
+function stampLifecycle(job: Job, status: JobStatus): void {
+  if (status === 'deployed') {
+    job.deployedAt = Date.now();
+  } else if (status === 'pickup') {
+    job.pickedUpAt = Date.now();
+  } else if (status === 'closed') {
+    job.closedAt = Date.now();
+  }
+}
+
 export async function setJobStatus(id: string, status: JobStatus): Promise<void> {
   const meta = await readJson<Job | null>(jobMetaKey(id), null);
   if (meta) {
     meta.status = status;
+    stampLifecycle(meta, status);
     await writeJson(jobMetaKey(id), meta);
   }
 
@@ -111,6 +125,7 @@ export async function setJobStatus(id: string, status: JobStatus): Promise<void>
   const entry = index.find(j => j.id === id);
   if (entry) {
     entry.status = status;
+    stampLifecycle(entry, status);
     await writeJson(JOBS_INDEX_KEY, index);
   }
 }
