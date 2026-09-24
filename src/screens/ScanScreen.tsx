@@ -64,7 +64,7 @@ export default function ScanScreen() {
 
       <View style={[styles.header, { paddingTop: 20 + insets.top }]}>
         <View>
-          <Text style={styles.title}>Quantum Scanner</Text>
+          <Text style={styles.title}>Nodes Inventory</Text>
           <Text style={styles.headerSub}>
             {nodes.size} node{nodes.size !== 1 ? 's' : ''} · {scanning ? 'Scanning…' : 'Idle'}
           </Text>
