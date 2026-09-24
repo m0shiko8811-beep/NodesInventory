@@ -239,6 +239,18 @@ export default function PickupScreen({ navigation, route }: NativeStackScreenPro
   const recoveredCount = Object.values(results).filter(r => r.state === 'recovered').length;
   const hasReconciled = Object.keys(results).length > 0;
 
+  // Live scanning feedback, recomputed every render so it updates as nodesBySerial changes.
+  const pickupStartedAt = pickupStartedAtRef.current;
+  let heardInJob = 0;
+  for (const rec of Object.values(manifest)) {
+    const node = nodesBySerial.get(rec.bleSerial);
+    if (node && node.lastSeen >= pickupStartedAt) heardInJob += 1;
+  }
+  let inRange = 0;
+  for (const node of nodesBySerial.values()) {
+    if (node.lastSeen >= pickupStartedAt) inRange += 1;
+  }
+
   const rows: Row[] = [];
   const seen = new Set<string>();
   for (const key of Object.keys(manifest)) {
@@ -307,6 +319,14 @@ export default function PickupScreen({ navigation, route }: NativeStackScreenPro
       <JobHeader title="Pickup" subtitle={job.name} />
 
       <View style={styles.statusRow}>
+        {scanning ? (
+          <View style={styles.liveRow}>
+            <View style={[styles.liveDot, inRange > 0 ? styles.liveDotActive : styles.liveDotMuted]} />
+            <Text style={styles.liveLine}>
+              Hearing <Text style={styles.countNum}>{heardInJob}</Text> of {manifestSize} job nodes  ({inRange} in range)
+            </Text>
+          </View>
+        ) : null}
         <Text style={styles.statusLine}>
           {gpsMode === 'ok'
             ? `Phone GPS +/- ${gpsAccuracy != null ? Math.round(gpsAccuracy) : '?'}m`
@@ -389,6 +409,11 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   statusLine: { color: '#aaa', fontSize: 13 },
+  liveRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
+  liveDot: { width: 8, height: 8, borderRadius: 4 },
+  liveDotActive: { backgroundColor: '#4CAF50' },
+  liveDotMuted: { backgroundColor: '#555' },
+  liveLine: { color: '#42A5F5', fontSize: 13, fontWeight: '600' },
   reconciledLine: { color: '#777', fontSize: 12, marginTop: 2 },
   countNum: { color: '#fff', fontWeight: 'bold' },
   toolbar: {
