@@ -30,6 +30,7 @@ export default function PreDeployScreen({ navigation, route }: NativeStackScreen
   const manifestRef = useRef<Record<string, DeployedNodeRecord>>({});
   const pendingRef = useRef<Record<string, DeployedNodeRecord>>({});
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const removedSerialsRef = useRef<Set<number>>(new Set());
 
   useEffect(() => {
     manifestRef.current = manifest;
@@ -88,6 +89,7 @@ export default function PreDeployScreen({ navigation, route }: NativeStackScreen
 
     for (const node of nodesBySerial.values()) {
       if (node.lastSeen < startedAt) continue;
+      if (removedSerialsRef.current.has(node.bleSerial)) continue;
       const key = String(node.bleSerial);
       const existing = next[key];
 
@@ -139,6 +141,7 @@ export default function PreDeployScreen({ navigation, route }: NativeStackScreen
       flushPending();
     } else {
       deployStartedAtRef.current = Date.now();
+      removedSerialsRef.current = new Set();
       startScan();
     }
   };
@@ -169,6 +172,7 @@ export default function PreDeployScreen({ navigation, route }: NativeStackScreen
 
   const handleRemoveNode = useCallback(async (bleSerial: number) => {
     const key = String(bleSerial);
+    removedSerialsRef.current.add(bleSerial);
     delete pendingRef.current[key];
     setManifest(prev => {
       if (!(key in prev)) return prev;
