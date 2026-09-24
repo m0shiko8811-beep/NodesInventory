@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { File, Paths } from 'expo-file-system';
+import { File, Directory, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import type { JobStackParamList } from '../navigation/types';
 import JobHeader from '../components/JobHeader';
@@ -92,11 +92,20 @@ export default function ReportScreen({ navigation, route }: NativeStackScreenPro
     const pickup = await loadPickup(jobId);
 
     const displayRows: DisplayRow[] = [];
+    const seen = new Set<string>();
+
     for (const serial of Object.keys(deployed)) {
       const record = deployed[serial];
+      seen.add(String(record.bleSerial));
       const result = pickup[serial];
       if (result) {
-        displayRows.push({ key: serial, ...result });
+        // An in-manifest node can never really be 'extra' (extra means heard but
+        // not deployed). If pickup tagged it that way anyway, fall back to its
+        // heard/missing state instead of double-counting it as an extra.
+        const state = result.state === 'extra'
+          ? (result.heard ? 'heard-not-close' : 'missing')
+          : result.state;
+        displayRows.push({ key: serial, ...result, state });
       } else {
         displayRows.push({
           key: serial,
@@ -113,8 +122,10 @@ export default function ReportScreen({ navigation, route }: NativeStackScreenPro
         });
       }
     }
+
     for (const serial of Object.keys(pickup)) {
       const result = pickup[serial];
+      if (seen.has(String(result.bleSerial))) continue;
       if (result.state === 'extra') {
         displayRows.push({ key: serial, ...result });
       }
@@ -156,9 +167,15 @@ export default function ReportScreen({ navigation, route }: NativeStackScreenPro
       const csv = buildCsv(manifest, rows);
       const stamp = new Date().toISOString().replace(/[:.]/g, '-');
       const safeName = job.name.replace(/[^a-zA-Z0-9_-]/g, '_');
-      const file = new File(Paths.cache, 'pickup_' + safeName + '_' + stamp + '.csv');
+
+      // Unique folder per export on internal storage so reports never overwrite each other.
+      const reportDir = new Directory(Paths.document, 'QuantumReports', `${safeName}_${stamp}`);
+      reportDir.create({ intermediates: true, idempotent: true });
+
+      const file = new File(reportDir, 'report.csv');
       file.create();
       file.write(csv);
+
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(file.uri, {
           mimeType: 'text/csv',
@@ -166,6 +183,8 @@ export default function ReportScreen({ navigation, route }: NativeStackScreenPro
           UTI: 'public.comma-separated-values-text',
         });
       }
+
+      Alert.alert('Report saved', file.uri);
     } catch (err) {
       Alert.alert('Export failed', err instanceof Error ? err.message : String(err));
     }

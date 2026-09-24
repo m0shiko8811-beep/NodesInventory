@@ -44,6 +44,7 @@ export default function JobHomeScreen({ navigation }: NativeStackScreenProps<Job
   const [activeJob, setActiveJobState] = useState<Job | null>(null);
   const [deployedCount, setDeployedCount] = useState(0);
   const [recoveredCount, setRecoveredCount] = useState(0);
+  const [missingCount, setMissingCount] = useState(0);
   const [pastJobs, setPastJobs] = useState<PastJobEntry[]>([]);
   const [newJobName, setNewJobName] = useState('');
   const [loaded, setLoaded] = useState(false);
@@ -55,11 +56,24 @@ export default function JobHomeScreen({ navigation }: NativeStackScreenProps<Job
     if (job) {
       const deployed = await loadDeployed(job.id);
       const pickup = await loadPickup(job.id);
-      setDeployedCount(Object.keys(deployed).length);
-      setRecoveredCount(Object.values(pickup).filter(r => r.state === 'recovered').length);
+      const serials = Object.keys(deployed);
+      let recovered = 0;
+      let missing = 0;
+      for (const serial of serials) {
+        const result = pickup[serial];
+        if (result && result.state === 'recovered') {
+          recovered += 1;
+        } else if (!result || result.state === 'missing') {
+          missing += 1;
+        }
+      }
+      setDeployedCount(serials.length);
+      setRecoveredCount(recovered);
+      setMissingCount(missing);
     } else {
       setDeployedCount(0);
       setRecoveredCount(0);
+      setMissingCount(0);
     }
 
     const all = await listJobs();
@@ -101,7 +115,6 @@ export default function JobHomeScreen({ navigation }: NativeStackScreenProps<Job
     await refresh();
   }, [refresh]);
 
-  const missingCount = Math.max(0, deployedCount - recoveredCount);
   const canPickup = activeJob !== null && (activeJob.status === 'deployed' || activeJob.status === 'pickup');
   const canReport = activeJob !== null
     && (activeJob.status === 'pickup' || activeJob.status === 'closed' || deployedCount > 0);

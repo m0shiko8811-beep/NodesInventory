@@ -22,6 +22,7 @@ export default function PreDeployScreen({ navigation, route }: NativeStackScreen
   const [job, setJob] = useState<Job | null>(null);
   const [jobChecked, setJobChecked] = useState(false);
   const [manifest, setManifest] = useState<Record<string, DeployedNodeRecord>>({});
+  const [saveError, setSaveError] = useState(false);
 
   const deployStartedAtRef = useRef<number>(0);
   const manifestRef = useRef<Record<string, DeployedNodeRecord>>({});
@@ -63,7 +64,9 @@ export default function PreDeployScreen({ navigation, route }: NativeStackScreen
     const records = Object.values(pendingRef.current);
     pendingRef.current = {};
     if (records.length === 0) return;
-    upsertDeployedNodes(jobId, records).catch(() => {});
+    upsertDeployedNodes(jobId, records)
+      .then(() => setSaveError(false))
+      .catch(() => setSaveError(true));
   }, [jobId]);
 
   const scheduleFlush = useCallback(() => {
@@ -84,7 +87,21 @@ export default function PreDeployScreen({ navigation, route }: NativeStackScreen
     for (const node of nodesBySerial.values()) {
       if (node.lastSeen < startedAt) continue;
       const key = String(node.bleSerial);
-      if (next[key]) continue;
+      const existing = next[key];
+
+      if (existing) {
+        if (existing.deployFix === null && node.lastGoodFix != null && node.lastGoodFix.ts >= startedAt) {
+          const updated: DeployedNodeRecord = {
+            ...existing,
+            deployFix: node.lastGoodFix,
+            batteryPctAtDeploy: existing.batteryPctAtDeploy === null ? node.batteryPct : existing.batteryPctAtDeploy,
+          };
+          next[key] = updated;
+          pendingRef.current[key] = updated;
+          grew = true;
+        }
+        continue;
+      }
 
       const record: DeployedNodeRecord = {
         bleSerial: node.bleSerial,
@@ -107,7 +124,8 @@ export default function PreDeployScreen({ navigation, route }: NativeStackScreen
 
   useEffect(() => () => {
     if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
-  }, []);
+    stopScan();
+  }, [stopScan]);
 
   const handleScanPress = () => {
     if (scanning) {
@@ -132,13 +150,17 @@ export default function PreDeployScreen({ navigation, route }: NativeStackScreen
     }
     try {
       const records = Object.values(pendingRef.current);
-      pendingRef.current = {};
       if (records.length > 0) {
         await upsertDeployedNodes(jobId, records);
+        pendingRef.current = {};
       }
-      await setJobStatus(jobId, 'deployed');
+      if (job.status !== 'closed') {
+        await setJobStatus(jobId, 'deployed');
+      }
+      setSaveError(false);
     } catch {
-      // best effort persistence; local manifest state already reflects what was seen
+      setSaveError(true);
+      return;
     }
     navigation.goBack();
   };
@@ -174,6 +196,9 @@ export default function PreDeployScreen({ navigation, route }: NativeStackScreen
       <StatusBar barStyle="light-content" backgroundColor="#1A237E" />
       <JobHeader title="Pre-deploy" subtitle={job.name} />
       <Text style={styles.metaLine}>{job.name} - created {fmt(job.createdAt)}</Text>
+      {saveError ? (
+        <Text style={styles.errorTxt}>Some nodes may not be saved, tap Finish again</Text>
+      ) : null}
 
       <View style={styles.toolbar}>
         <View style={styles.toolbarLeft}>
@@ -252,6 +277,13 @@ const styles = StyleSheet.create({
   countNum: { fontWeight: 'bold' },
   statusTxt: { color: '#aaa', fontSize: 12, marginTop: 2 },
   hint: { color: '#FF9800', fontSize: 12, marginTop: 4 },
+  errorTxt: {
+    color: '#F44336',
+    fontSize: 12,
+    fontWeight: 'bold',
+    paddingHorizontal: 16,
+    paddingTop: 4,
+  },
   scanBtn: { paddingHorizontal: 22, paddingVertical: 10, borderRadius: 8 },
   scanBtnAccent: { backgroundColor: '#42A5F5' },
   stopBtn: { backgroundColor: '#F44336' },

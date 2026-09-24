@@ -38,6 +38,14 @@ export interface PickupResult {
   reconciledAt: number;
 }
 
+let writeChain: Promise<unknown> = Promise.resolve();
+
+function enqueue<T>(op: () => Promise<T>): Promise<T> {
+  const run = writeChain.then(op, op);
+  writeChain = run.catch(() => {});
+  return run as Promise<T>;
+}
+
 const ACTIVE_JOB_ID_KEY = 'qapp:activeJobId';
 const JOBS_INDEX_KEY = 'qapp:jobs:index';
 
@@ -67,22 +75,24 @@ async function writeJson(key: string, value: unknown): Promise<void> {
   await AsyncStorage.setItem(key, JSON.stringify(value));
 }
 
-export async function createJob(name: string): Promise<Job> {
-  const suffix = Math.random().toString(36).slice(2, 8);
-  const job: Job = {
-    id: `${Date.now()}-${suffix}`,
-    name,
-    createdAt: Date.now(),
-    status: 'preDeploy',
-  };
+export function createJob(name: string): Promise<Job> {
+  return enqueue(async () => {
+    const suffix = Math.random().toString(36).slice(2, 8);
+    const job: Job = {
+      id: `${Date.now()}-${suffix}`,
+      name,
+      createdAt: Date.now(),
+      status: 'preDeploy',
+    };
 
-  const index = await readJson<Job[]>(JOBS_INDEX_KEY, []);
-  index.push(job);
-  await writeJson(JOBS_INDEX_KEY, index);
-  await writeJson(jobMetaKey(job.id), job);
-  await setActiveJob(job.id);
+    const index = await readJson<Job[]>(JOBS_INDEX_KEY, []);
+    index.push(job);
+    await writeJson(JOBS_INDEX_KEY, index);
+    await writeJson(jobMetaKey(job.id), job);
+    await setActiveJobInternal(job.id);
 
-  return job;
+    return job;
+  });
 }
 
 export async function loadActiveJob(): Promise<Job | null> {
@@ -95,8 +105,12 @@ export async function loadActiveJob(): Promise<Job | null> {
   }
 }
 
-export async function setActiveJob(id: string): Promise<void> {
+async function setActiveJobInternal(id: string): Promise<void> {
   await AsyncStorage.setItem(ACTIVE_JOB_ID_KEY, id);
+}
+
+export function setActiveJob(id: string): Promise<void> {
+  return enqueue(() => setActiveJobInternal(id));
 }
 
 export async function listJobs(): Promise<Job[]> {
@@ -113,49 +127,55 @@ function stampLifecycle(job: Job, status: JobStatus): void {
   }
 }
 
-export async function setJobStatus(id: string, status: JobStatus): Promise<void> {
-  const meta = await readJson<Job | null>(jobMetaKey(id), null);
-  if (meta) {
-    meta.status = status;
-    stampLifecycle(meta, status);
-    await writeJson(jobMetaKey(id), meta);
-  }
+export function setJobStatus(id: string, status: JobStatus): Promise<void> {
+  return enqueue(async () => {
+    const meta = await readJson<Job | null>(jobMetaKey(id), null);
+    if (meta) {
+      meta.status = status;
+      stampLifecycle(meta, status);
+      await writeJson(jobMetaKey(id), meta);
+    }
 
-  const index = await readJson<Job[]>(JOBS_INDEX_KEY, []);
-  const entry = index.find(j => j.id === id);
-  if (entry) {
-    entry.status = status;
-    stampLifecycle(entry, status);
-    await writeJson(JOBS_INDEX_KEY, index);
-  }
+    const index = await readJson<Job[]>(JOBS_INDEX_KEY, []);
+    const entry = index.find(j => j.id === id);
+    if (entry) {
+      entry.status = status;
+      stampLifecycle(entry, status);
+      await writeJson(JOBS_INDEX_KEY, index);
+    }
+  });
 }
 
 export async function loadDeployed(jobId: string): Promise<Record<string, DeployedNodeRecord>> {
   return readJson<Record<string, DeployedNodeRecord>>(jobDeployedKey(jobId), {});
 }
 
-export async function upsertDeployedNodes(jobId: string, records: DeployedNodeRecord[]): Promise<void> {
-  const existing = await loadDeployed(jobId);
-  for (const record of records) {
-    existing[String(record.bleSerial)] = record;
-  }
-  await writeJson(jobDeployedKey(jobId), existing);
+export function upsertDeployedNodes(jobId: string, records: DeployedNodeRecord[]): Promise<void> {
+  return enqueue(async () => {
+    const existing = await loadDeployed(jobId);
+    for (const record of records) {
+      existing[String(record.bleSerial)] = record;
+    }
+    await writeJson(jobDeployedKey(jobId), existing);
+  });
 }
 
 export async function loadPickup(jobId: string): Promise<Record<string, PickupResult>> {
   return readJson<Record<string, PickupResult>>(jobPickupKey(jobId), {});
 }
 
-export async function mergePickupResults(jobId: string, results: PickupResult[]): Promise<void> {
-  const existing = await loadPickup(jobId);
-  for (const result of results) {
-    const key = String(result.bleSerial);
-    const current = existing[key];
-    if (current && current.state === 'recovered') {
-      // recovered is sticky: never downgrade a confirmed recovery
-      continue;
+export function mergePickupResults(jobId: string, results: PickupResult[]): Promise<void> {
+  return enqueue(async () => {
+    const existing = await loadPickup(jobId);
+    for (const result of results) {
+      const key = String(result.bleSerial);
+      const current = existing[key];
+      if (current && current.state === 'recovered') {
+        // recovered is sticky: never downgrade a confirmed recovery
+        continue;
+      }
+      existing[key] = result;
     }
-    existing[key] = result;
-  }
-  await writeJson(jobPickupKey(jobId), existing);
+    await writeJson(jobPickupKey(jobId), existing);
+  });
 }

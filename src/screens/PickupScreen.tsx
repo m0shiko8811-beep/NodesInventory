@@ -51,6 +51,7 @@ export default function PickupScreen({ navigation, route }: NativeStackScreenPro
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
+      pickupStartedAtRef.current = Date.now();
       (async () => {
         try {
           const found = (await listJobs()).find(j => j.id === jobId) ?? null;
@@ -342,9 +343,9 @@ export default function PickupScreen({ navigation, route }: NativeStackScreenPro
       )}
 
       <TouchableOpacity
-        style={[styles.reconcileBtn, reconciling && styles.btnDisabled]}
+        style={[styles.reconcileBtn, (reconciling || pickupStartedAtRef.current === 0) && styles.btnDisabled]}
         onPress={handleReconcile}
-        disabled={reconciling}
+        disabled={reconciling || pickupStartedAtRef.current === 0}
       >
         <Text style={styles.reconcileBtnTxt}>{reconciling ? 'Reconciling...' : 'Reconcile now'}</Text>
       </TouchableOpacity>

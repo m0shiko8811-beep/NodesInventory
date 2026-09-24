@@ -39,27 +39,27 @@ export function evaluateRecovery(
   radiusM: number = RECOVERY_RADIUS_M,
   rssiThreshold: number = RSSI_FALLBACK_THRESHOLD,
 ): RecoveryEval {
-  const hasFreshFix =
-    input.nodeFix != null &&
-    input.nodeFix.positionStatus === 1 &&
-    input.nodeFix.ts >= input.phaseStartedAt;
+  const hasFreshFix = input.nodeFix != null && input.nodeFix.positionStatus === 1 && input.nodeFix.ts >= input.phaseStartedAt;
 
-  const distanceM =
-    input.phone != null && input.nodeFix != null
-      ? haversineMeters(input.phone.lat, input.phone.lon, input.nodeFix.lat, input.nodeFix.lon)
-      : null;
+  // distance is meaningful only when we have the phone position AND a FRESH node fix
+  const distanceM = (input.phone != null && input.nodeFix != null && hasFreshFix)
+    ? haversineMeters(input.phone.lat, input.phone.lon, input.nodeFix.lat, input.nodeFix.lon)
+    : null;
 
   const positionStatus = input.nodeFix ? input.nodeFix.positionStatus : null;
-  const fixAgeMs = input.nodeFix ? input.now - input.nodeFix.ts : null;
+  const fixAgeMs = input.nodeFix ? (input.now - input.nodeFix.ts) : null;
 
+  // 1) fresh fix within radius (needs phone GPS)
   if (hasFreshFix && input.phone != null && distanceM != null && distanceM <= radiusM) {
     return { recovered: true, reason: 'gps-close', distanceM, positionStatus, fixAgeMs };
   }
-
-  if (!hasFreshFix && input.rssi != null && input.rssi >= rssiThreshold) {
+  // 2) RSSI fallback when GPS cannot decide: either no fresh fix, OR phone GPS is unavailable
+  if ((!hasFreshFix || input.phone == null) && input.rssi != null && input.rssi >= rssiThreshold) {
     return { recovered: true, reason: 'rssi-fallback', distanceM, positionStatus, fixAgeMs };
   }
-
-  const reason = hasFreshFix ? 'too-far' : input.rssi != null ? 'weak-signal' : 'no-fix';
+  // 3) not recovered
+  const reason = (hasFreshFix && input.phone != null)
+    ? 'too-far'
+    : (input.rssi != null ? 'weak-signal' : 'no-fix');
   return { recovered: false, reason, distanceM, positionStatus, fixAgeMs };
 }
