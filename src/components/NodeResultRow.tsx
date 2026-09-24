@@ -10,6 +10,7 @@ export interface NodeResultRowProps {
   fixAgeMs?: number | null;
   state?: ReconState;
   batteryPct?: number | null;
+  seen?: boolean;
   onRemove?: () => void;
 }
 
@@ -67,6 +68,7 @@ export default function NodeResultRow({
   fixAgeMs,
   state,
   batteryPct,
+  seen,
   onRemove,
 }: NodeResultRowProps) {
   const rssiText = formatRssi(rssi);
@@ -75,6 +77,7 @@ export default function NodeResultRow({
   const fixAgeText = formatFixAge(fixAgeMs);
   const hasBattery = batteryPct !== null && batteryPct !== undefined;
   const badge = state ? STATE_BADGES[state] : null;
+  const hasSeen = seen !== undefined;
 
   const parts: { key: string; node: React.ReactNode }[] = [];
   if (rssiText) parts.push({ key: 'rssi', node: <Text style={styles.metricText}>{rssiText}</Text> });
@@ -108,6 +111,14 @@ export default function NodeResultRow({
           </View>
         ) : null}
       </View>
+      {hasSeen ? (
+        <View style={styles.seenWrap}>
+          <View style={[styles.dot, { backgroundColor: seen ? '#4CAF50' : '#777' }]} />
+          <Text style={[styles.seenText, { color: seen ? '#4CAF50' : '#777' }]}>
+            {seen ? 'Seen' : 'Not seen'}
+          </Text>
+        </View>
+      ) : null}
       {badge ? (
         <View style={styles.badgeWrap}>
           <Text style={[styles.badgeText, { color: badge.color }]}>{badge.label}</Text>
@@ -146,6 +157,8 @@ const styles = StyleSheet.create({
   metricText: { color: '#aaa', fontSize: 12 },
   batteryPiece: { flexDirection: 'row', alignItems: 'center' },
   dot: { width: 8, height: 8, borderRadius: 4, marginLeft: 1 },
+  seenWrap: { flexDirection: 'row', alignItems: 'center', marginLeft: 12 },
+  seenText: { fontSize: 13, fontWeight: 'bold', marginLeft: 5 },
   badgeWrap: { marginLeft: 12 },
   badgeText: { fontSize: 13, fontWeight: 'bold' },
   removeBtn: { paddingHorizontal: 10, paddingVertical: 6, marginLeft: 4 },

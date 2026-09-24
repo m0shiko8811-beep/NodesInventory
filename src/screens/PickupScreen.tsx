@@ -28,6 +28,14 @@ interface Row {
   state?: ReconState;
 }
 
+interface LiveRow {
+  key: string;
+  physicalLabel: string;
+  batteryPct?: number | null;
+  seen: boolean;
+  rssi?: number | null;
+}
+
 const fmt = (ts: number) => new Date(ts).toLocaleString();
 
 export default function PickupScreen({ navigation, route }: NativeStackScreenProps<JobStackParamList, 'Pickup'>) {
@@ -251,6 +259,21 @@ export default function PickupScreen({ navigation, route }: NativeStackScreenPro
     if (node.lastSeen >= pickupStartedAt) inRange += 1;
   }
 
+  // Per-node "seen" feedback while scanning, before a reconcile has run.
+  const liveRows: LiveRow[] = [];
+  for (const key of Object.keys(manifest)) {
+    const rec = manifest[key];
+    const node = nodesBySerial.get(rec.bleSerial);
+    const isSeen = !!node && node.lastSeen >= pickupStartedAt;
+    liveRows.push({
+      key,
+      physicalLabel: rec.physicalLabel,
+      batteryPct: rec.batteryPctAtDeploy,
+      seen: isSeen,
+      rssi: isSeen ? node!.rssi : undefined,
+    });
+  }
+
   const rows: Row[] = [];
   const seen = new Set<string>();
   for (const key of Object.keys(manifest)) {
@@ -364,7 +387,29 @@ export default function PickupScreen({ navigation, route }: NativeStackScreenPro
         <Text style={styles.hintCenter}>Scan the collected nodes, then tap Reconcile now.</Text>
       ) : null}
 
-      {rows.length === 0 ? (
+      {scanning ? (
+        liveRows.length === 0 ? (
+          <View style={styles.empty}>
+            <Text style={styles.emptyTxt}>No nodes in the manifest for this job.</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={liveRows}
+            keyExtractor={r => r.key}
+            renderItem={({ item }) => (
+              <View style={styles.rowWrap}>
+                <NodeResultRow
+                  physicalLabel={item.physicalLabel}
+                  batteryPct={item.batteryPct}
+                  seen={item.seen}
+                  rssi={item.rssi}
+                />
+              </View>
+            )}
+            contentContainerStyle={{ paddingBottom: 16 }}
+          />
+        )
+      ) : rows.length === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyTxt}>No nodes in the manifest for this job.</Text>
         </View>
