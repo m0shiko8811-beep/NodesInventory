@@ -15,6 +15,7 @@ interface ScannerContextType {
   startScan: () => void;
   stopScan: () => void;
   clearNodes: () => void;
+  removeNode: (mac: string) => void;
 }
 
 const ScannerContext = createContext<ScannerContextType>({
@@ -25,6 +26,7 @@ const ScannerContext = createContext<ScannerContextType>({
   startScan: () => {},
   stopScan: () => {},
   clearNodes: () => {},
+  removeNode: () => {},
 });
 
 export function useScannerContext() {
@@ -36,6 +38,7 @@ export function ScannerProvider({ children }: { children: React.ReactNode }) {
   const [nodes, setNodes] = useState<Map<string, QuantumNode>>(new Map());
   const [scanning, setScanning] = useState(false);
   const [bleReady, setBleReady] = useState(false);
+  const removedMacsRef = useRef<Set<string>>(new Set()).current;
 
   useEffect(() => {
     const sub = manager.onStateChange(state => {
@@ -75,6 +78,7 @@ export function ScannerProvider({ children }: { children: React.ReactNode }) {
     setScanning(true);
     manager.startDeviceScan(null, { allowDuplicates: true, scanMode: ScanMode.LowLatency, legacyScan: false }, (err, device) => {
       if (err || !device) return;
+      if (removedMacsRef.has(device.id)) return;
 
       const advName = device.localName ?? device.name;
       if (!advName?.startsWith('TN ')) return;
@@ -102,7 +106,19 @@ export function ScannerProvider({ children }: { children: React.ReactNode }) {
     setScanning(false);
   }, [manager]);
 
-  const clearNodes = useCallback(() => setNodes(new Map()), []);
+  const clearNodes = useCallback(() => {
+    removedMacsRef.clear();
+    setNodes(new Map());
+  }, []);
+
+  const removeNode = useCallback((mac: string) => {
+    removedMacsRef.add(mac);
+    setNodes(prev => {
+      const next = new Map(prev);
+      next.delete(mac);
+      return next;
+    });
+  }, []);
 
   useEffect(() => () => { manager.stopDeviceScan(); manager.destroy(); }, [manager]);
 
@@ -126,7 +142,7 @@ export function ScannerProvider({ children }: { children: React.ReactNode }) {
   return (
     <ScannerContext.Provider
       value={{
-        nodes, nodesBySerial, scanning, bleReady, startScan, stopScan, clearNodes,
+        nodes, nodesBySerial, scanning, bleReady, startScan, stopScan, clearNodes, removeNode,
       }}
     >
       {children}

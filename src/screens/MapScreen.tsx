@@ -50,6 +50,7 @@ function addOrUpdate(n){
     +'RSSI: '+n.rssi+' dBm<br>'
     +'Lat: '+n.latitude.toFixed(6)+'<br>'
     +'Lon: '+n.longitude.toFixed(6);
+  popup += '<br><button onclick="removeNodeFromMap(\\''+n.mac+'\\')" style="margin-top:6px">Remove from map</button>';
   if(markers[n.mac]){
     markers[n.mac].setLatLng([n.latitude,n.longitude]);
     markers[n.mac].setPopupContent(popup);
@@ -57,6 +58,10 @@ function addOrUpdate(n){
     markers[n.mac]=L.marker([n.latitude,n.longitude],{icon:icon})
       .bindPopup(popup).addTo(map);
   }
+}
+
+function removeNodeFromMap(mac){
+  if(window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'remove', mac: mac }));
 }
 
 nodes.forEach(addOrUpdate);
@@ -83,7 +88,7 @@ window.addEventListener('message', function(e){
 }
 
 export default function MapScreen() {
-  const { nodes } = useScannerContext();
+  const { nodes, removeNode } = useScannerContext();
   const insets = useSafeAreaInsets();
   const webRef = useRef<WebView>(null);
 
@@ -107,6 +112,17 @@ export default function MapScreen() {
     [],
   );
 
+  const handleMessage = (event: { nativeEvent: { data: string } }) => {
+    try {
+      const msg = JSON.parse(event.nativeEvent.data);
+      if (msg && msg.type === 'remove' && typeof msg.mac === 'string') {
+        removeNode(msg.mac);
+      }
+    } catch (e) {
+      // ignore malformed messages from the WebView
+    }
+  };
+
   return (
     <View style={styles.container}>
       {nodesWithGps.length === 0 && (
@@ -123,6 +139,7 @@ export default function MapScreen() {
         style={styles.map}
         javaScriptEnabled
         domStorageEnabled
+        onMessage={handleMessage}
       />
     </View>
   );

@@ -28,7 +28,7 @@ export interface RecoveryInput {
 
 export interface RecoveryEval {
   recovered: boolean;
-  reason: 'gps-close' | 'rssi-fallback' | 'too-far' | 'weak-signal' | 'no-fix';
+  reason: 'gps-close' | 'rssi-close' | 'too-far' | 'weak-signal' | 'no-fix';
   distanceM: number | null;
   positionStatus: number | null;
   fixAgeMs: number | null;
@@ -40,26 +40,25 @@ export function evaluateRecovery(
   rssiThreshold: number = RSSI_FALLBACK_THRESHOLD,
 ): RecoveryEval {
   const hasFreshFix = input.nodeFix != null && input.nodeFix.positionStatus === 1 && input.nodeFix.ts >= input.phaseStartedAt;
-
-  // distance is meaningful only when we have the phone position AND a FRESH node fix
   const distanceM = (input.phone != null && input.nodeFix != null && hasFreshFix)
     ? haversineMeters(input.phone.lat, input.phone.lon, input.nodeFix.lat, input.nodeFix.lon)
     : null;
-
   const positionStatus = input.nodeFix ? input.nodeFix.positionStatus : null;
   const fixAgeMs = input.nodeFix ? (input.now - input.nodeFix.ts) : null;
+  const strongRssi = input.rssi != null && input.rssi >= rssiThreshold;
 
-  // 1) fresh fix within radius (needs phone GPS)
+  // PRIMARY: strong signal means the node is right here (in hand / a few meters)
+  if (strongRssi) {
+    return { recovered: true, reason: 'rssi-close', distanceM, positionStatus, fixAgeMs };
+  }
+  // SECONDARY: you are standing at the node location (fresh fix within radius)
   if (hasFreshFix && input.phone != null && distanceM != null && distanceM <= radiusM) {
     return { recovered: true, reason: 'gps-close', distanceM, positionStatus, fixAgeMs };
   }
-  // 2) RSSI fallback when GPS cannot decide: either no fresh fix, OR phone GPS is unavailable
-  if ((!hasFreshFix || input.phone == null) && input.rssi != null && input.rssi >= rssiThreshold) {
-    return { recovered: true, reason: 'rssi-fallback', distanceM, positionStatus, fixAgeMs };
-  }
-  // 3) not recovered
-  const reason = (hasFreshFix && input.phone != null)
-    ? 'too-far'
-    : (input.rssi != null ? 'weak-signal' : 'no-fix');
+  // not recovered
+  let reason: RecoveryEval['reason'];
+  if (hasFreshFix && input.phone != null && distanceM != null && distanceM > radiusM) reason = 'too-far';
+  else if (input.rssi != null) reason = 'weak-signal';
+  else reason = 'no-fix';
   return { recovered: false, reason, distanceM, positionStatus, fixAgeMs };
 }
