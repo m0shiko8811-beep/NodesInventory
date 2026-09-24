@@ -10,7 +10,7 @@ import type { JobStackParamList } from '../navigation/types';
 import JobHeader from '../components/JobHeader';
 import NodeResultRow from '../components/NodeResultRow';
 import {
-  Job, DeployedNodeRecord, PickupResult, listJobs, loadDeployed, loadPickup, setJobStatus,
+  Job, DeployedNodeRecord, PickupResult, listJobs, loadDeployed, loadPickup, setJobStatus, logEvent,
 } from '../services/jobStore';
 
 interface DisplayRow extends PickupResult {
@@ -185,6 +185,7 @@ export default function ReportScreen({ navigation, route }: NativeStackScreenPro
         });
       }
 
+      logEvent({ type: 'csv-export', jobId, jobName: job?.name, detail: fileName });
       Alert.alert('Report saved', file.uri);
     } catch (err) {
       Alert.alert('Export failed', err instanceof Error ? err.message : String(err));

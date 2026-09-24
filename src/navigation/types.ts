@@ -3,4 +3,5 @@ export type JobStackParamList = {
   PreDeploy: { jobId: string };
   Pickup: { jobId: string };
   Report: { jobId: string };
+  Log: undefined;
 };

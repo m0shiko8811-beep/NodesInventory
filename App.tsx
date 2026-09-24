@@ -12,6 +12,7 @@ import JobHomeScreen from './src/screens/JobHomeScreen';
 import PreDeployScreen from './src/screens/PreDeployScreen';
 import PickupScreen from './src/screens/PickupScreen';
 import ReportScreen from './src/screens/ReportScreen';
+import LogScreen from './src/screens/LogScreen';
 
 const Tab = createBottomTabNavigator();
 const JobStack = createNativeStackNavigator<JobStackParamList>();
@@ -23,6 +24,7 @@ function JobsNavigator() {
       <JobStack.Screen name="PreDeploy" component={PreDeployScreen} />
       <JobStack.Screen name="Pickup" component={PickupScreen} />
       <JobStack.Screen name="Report" component={ReportScreen} />
+      <JobStack.Screen name="Log" component={LogScreen} />
     </JobStack.Navigator>
   );
 }

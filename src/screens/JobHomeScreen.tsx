@@ -1,13 +1,13 @@
 import React, { useCallback, useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, StatusBar,
+  View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, StatusBar, Alert,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { JobStackParamList } from '../navigation/types';
 import JobHeader from '../components/JobHeader';
 import {
-  Job, JobStatus, createJob, loadActiveJob, setActiveJob, listJobs, loadDeployed, loadPickup,
+  Job, JobStatus, createJob, loadActiveJob, setActiveJob, listJobs, loadDeployed, loadPickup, deleteJob,
 } from '../services/jobStore';
 
 interface PastJobEntry {
@@ -115,6 +115,26 @@ export default function JobHomeScreen({ navigation }: NativeStackScreenProps<Job
     await refresh();
   }, [refresh]);
 
+  const confirmDelete = useCallback((id: string, name: string) => {
+    Alert.alert(
+      'Delete job?',
+      'This removes "' + name + '" and its data. A log entry is kept.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteJob(id);
+            } catch (e) {}
+            refresh();
+          },
+        },
+      ],
+    );
+  }, [refresh]);
+
   const canPickup = activeJob !== null && (activeJob.status === 'deployed' || activeJob.status === 'pickup');
   const canReport = activeJob !== null
     && (activeJob.status === 'pickup' || activeJob.status === 'closed' || deployedCount > 0);
@@ -139,6 +159,13 @@ export default function JobHomeScreen({ navigation }: NativeStackScreenProps<Job
           </TouchableOpacity>
         </View>
 
+        <TouchableOpacity
+          style={styles.logBtn}
+          onPress={() => navigation.navigate('Log')}
+        >
+          <Text style={styles.secondaryBtnText}>History</Text>
+        </TouchableOpacity>
+
         {showEmptyState ? (
           <View style={styles.empty}>
             <Text style={styles.emptyTxt}>
@@ -151,7 +178,15 @@ export default function JobHomeScreen({ navigation }: NativeStackScreenProps<Job
           <View style={styles.card}>
             <View style={styles.cardTopRow}>
               <Text style={styles.jobName}>{activeJob.name}</Text>
-              <StatusPill status={activeJob.status} />
+              <View style={styles.cardTopRight}>
+                <StatusPill status={activeJob.status} />
+                <TouchableOpacity
+                  style={styles.deleteBtn}
+                  onPress={() => confirmDelete(activeJob.id, activeJob.name)}
+                >
+                  <Text style={styles.deleteBtnText}>Delete</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             <View style={styles.timestampBlock}>
@@ -224,6 +259,12 @@ export default function JobHomeScreen({ navigation }: NativeStackScreenProps<Job
                   </Text>
                 </View>
                 <StatusPill status={entry.job.status} />
+                <TouchableOpacity
+                  style={styles.deleteBtn}
+                  onPress={() => confirmDelete(entry.job.id, entry.job.name)}
+                >
+                  <Text style={styles.deleteBtnText}>Delete</Text>
+                </TouchableOpacity>
               </TouchableOpacity>
             ))}
           </View>
@@ -268,6 +309,18 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   jobName: { color: '#fff', fontSize: 18, fontWeight: 'bold', flexShrink: 1, paddingRight: 8 },
+  cardTopRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  deleteBtn: { paddingHorizontal: 8, paddingVertical: 4 },
+  deleteBtnText: { color: '#F44336', fontSize: 12, fontWeight: 'bold' },
+  logBtn: {
+    backgroundColor: '#1A1A1A',
+    borderWidth: 1,
+    borderColor: '#232323',
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+    marginBottom: 14,
+  },
   timestampBlock: { marginBottom: 12 },
   timestampTxt: { color: '#888', fontSize: 11, marginTop: 1 },
   pill: {

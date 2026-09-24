@@ -7,7 +7,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { JobStackParamList } from '../navigation/types';
 import type { Job, DeployedNodeRecord } from '../services/jobStore';
 import {
-  listJobs, loadDeployed, upsertDeployedNodes, setJobStatus, removeDeployedNode,
+  listJobs, loadDeployed, upsertDeployedNodes, setJobStatus, removeDeployedNode, logEvent,
 } from '../services/jobStore';
 import { useScannerContext } from '../context/ScannerContext';
 import JobHeader from '../components/JobHeader';
@@ -167,6 +167,7 @@ export default function PreDeployScreen({ navigation, route }: NativeStackScreen
       setSaveError(true);
       return;
     }
+    logEvent({ type: 'deploy-finished', jobId, jobName: job?.name, detail: Object.keys(manifestRef.current).length + ' nodes' });
     navigation.goBack();
   };
 

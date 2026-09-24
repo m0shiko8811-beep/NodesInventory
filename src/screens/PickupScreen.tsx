@@ -8,7 +8,7 @@ import * as Location from 'expo-location';
 import type { JobStackParamList } from '../navigation/types';
 import type { Job, DeployedNodeRecord, PickupResult, ReconState } from '../services/jobStore';
 import {
-  listJobs, loadDeployed, loadPickup, mergePickupResults, setJobStatus, removeDeployedNode,
+  listJobs, loadDeployed, loadPickup, mergePickupResults, setJobStatus, removeDeployedNode, logEvent,
 } from '../services/jobStore';
 import { evaluateRecovery } from '../services/proximity';
 import { useScannerContext } from '../context/ScannerContext';
@@ -185,8 +185,14 @@ export default function PickupScreen({ navigation, route }: NativeStackScreenPro
       });
     }
 
+    const recovered = newResults.filter(r => r.state === 'recovered').length;
+    const missing = newResults.filter(r => r.state === 'missing').length;
+    const notClose = newResults.filter(r => r.state === 'heard-not-close').length;
+    const extra = newResults.filter(r => r.state === 'extra').length;
+
     try {
       await mergePickupResults(jobId, newResults);
+      logEvent({ type: 'reconcile', jobId, jobName: job?.name, detail: recovered + ' recovered, ' + missing + ' missing, ' + notClose + ' not close, ' + extra + ' extra' });
       await setJobStatus(jobId, 'pickup');
     } catch {
       // best effort persistence; local results state still updates below
